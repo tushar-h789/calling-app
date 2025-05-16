@@ -1,11 +1,33 @@
 "use client"
 
+import { useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth } from "@/hooks/use-auth"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { fetchUserProfile } from "@/store/slices/authSlice"
 
 export function UserProfile() {
-  const { user } = useAuth()
+  const dispatch = useAppDispatch()
+  const { user, token, status } = useAppSelector((state) => state.auth)
+
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchUserProfile(token))
+    }
+  }, [dispatch, token])
+
+  if (status === "loading") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4">Loading profile...</div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (!user) {
     return null

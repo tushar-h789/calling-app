@@ -2,11 +2,19 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { useAuth } from "@/hooks/use-auth"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { logout } from "@/store/slices/authSlice"
+import { disconnectSocket } from "@/store/slices/socketSlice"
 import { Logo } from "./logo"
 
 export function DashboardHeader() {
-  const { logout, user } = useAuth()
+  const dispatch = useAppDispatch()
+  const { user } = useAppSelector((state) => state.auth)
+
+  const handleLogout = () => {
+    dispatch(disconnectSocket())
+    dispatch(logout())
+  }
 
   return (
     <header className="bg-white border-b border-slate-200">
@@ -19,7 +27,7 @@ export function DashboardHeader() {
           <div className="text-sm text-slate-600">
             {user?.name} ({user?.type})
           </div>
-          <Button variant="outline" size="sm" onClick={logout}>
+          <Button variant="outline" size="sm" onClick={handleLogout}>
             Logout
           </Button>
         </div>

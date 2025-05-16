@@ -4,21 +4,26 @@ import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Phone, PhoneOff, Video } from "lucide-react"
-import { useCall } from "@/hooks/use-call"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { useRouter } from "next/navigation"
+import { setupMedia, setCallStatus, createPeerConnection } from "@/store/slices/callSlice"
 
 export function IncomingCallModal() {
-  const { callState, acceptCall, rejectCall } = useCall()
+  const dispatch = useAppDispatch()
+  const { status, isVideoCall, callId, callerName } = useAppSelector((state) => state.call)
+  const { socket } = useAppSelector((state) => state.socket)
+  const router = useRouter()
   const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     // Play ringtone when there's an incoming call
-    if (callState.status === "incoming" && audioRef.current) {
+    if (status === "incoming" && audioRef.current) {
       audioRef.current.currentTime = 0
       audioRef.current.play().catch((err) => console.error("Error playing ringtone:", err))
     }
 
     // Stop ringtone when call is no longer incoming
-    if (callState.status !== "incoming" && audioRef.current) {
+    if (status !== "incoming" && audioRef.current) {
       audioRef.current.pause()
     }
 
@@ -27,9 +32,49 @@ export function IncomingCallModal() {
         audioRef.current.pause()
       }
     }
-  }, [callState.status])
+  }, [status])
 
-  if (callState.status !== "incoming") {
+  const handleAcceptCall = async () => {
+    if (!socket || !callId) return
+
+    try {
+      // Stop ringtone
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+
+      // Setup media
+      await dispatch(setupMedia(isVideoCall)).unwrap()
+
+      // Create peer connection
+      await dispatch(createPeerConnection()).unwrap()
+
+      // Update call status
+      dispatch(setCallStatus("connected"))
+
+      // Navigate to call page
+      router.push(`/call/${callId}?type=${isVideoCall ? "video" : "audio"}`)
+    } catch (error) {
+      console.error("Error accepting call:", error)
+    }
+  }
+
+  const handleRejectCall = () => {
+    if (!socket || !callId) return
+
+    // Stop ringtone
+    if (audioRef.current) {
+      audioRef.current.pause()
+    }
+
+    // Emit reject call event
+    socket.emit("rejectCall", { callId })
+
+    // Reset call state
+    dispatch(setCallStatus("idle"))
+  }
+
+  if (status !== "incoming") {
     return null
   }
 
@@ -46,26 +91,26 @@ export function IncomingCallModal() {
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">
             <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center">
-              {callState.isVideoCall ? (
+              {isVideoCall ? (
                 <Video className="h-10 w-10 text-slate-600" />
               ) : (
                 <Phone className="h-10 w-10 text-slate-600" />
               )}
             </div>
             <div className="text-center">
-              <div className="text-xl font-medium">{callState.callerName || "Unknown Caller"}</div>
-              <div className="text-sm text-slate-500">{callState.isVideoCall ? "Video Call" : "Audio Call"}</div>
+              <div className="text-xl font-medium">{callerName || "Unknown Caller"}</div>
+              <div className="text-sm text-slate-500">{isVideoCall ? "Video Call" : "Audio Call"}</div>
             </div>
           </CardContent>
           <CardFooter className="flex justify-center space-x-4">
-            <Button variant="destructive" className="rounded-full h-12 w-12 p-0" onClick={rejectCall}>
+            <Button variant="destructive" className="rounded-full h-12 w-12 p-0" onClick={handleRejectCall}>
               <PhoneOff className="h-5 w-5" />
               <span className="sr-only">Reject</span>
             </Button>
             <Button
               variant="default"
               className="rounded-full h-12 w-12 p-0 bg-green-500 hover:bg-green-600"
-              onClick={acceptCall}
+              onClick={handleAcceptCall}
             >
               <Phone className="h-5 w-5" />
               <span className="sr-only">Accept</span>

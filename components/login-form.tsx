@@ -1,45 +1,53 @@
-"use client";
+"use client"
 
-import type React from "react";
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useAuth } from "@/hooks/use-auth";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import type React from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { login, fetchUserProfile } from "@/store/slices/authSlice"
+import { connectSocket } from "@/store/slices/socketSlice"
+import { toast } from "sonner"
 
 export function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState("user");
-  const [isLoading, setIsLoading] = useState(false);
-  const { login, loginWithGoogle } = useAuth();
-
-  const router = useRouter();
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [userType, setUserType] = useState("user")
+  const dispatch = useAppDispatch()
+  const { status, error } = useAppSelector((state) => state.auth)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+    e.preventDefault()
 
     try {
-      console.log("login", login);
+      // Login
+      const resultAction = await dispatch(login({ email, password })).unwrap()
 
-      await login(email, password);
-      toast.success("Login successful");
-      router.push("/dashboard");
+      // Fetch user profile
+      await dispatch(fetchUserProfile(resultAction.token)).unwrap()
+
+      // Connect socket
+      await dispatch(connectSocket(resultAction.token)).unwrap()
+
+      // Navigate to dashboard
+      router.push("/dashboard")
     } catch (error) {
-      toast.error("Invalid credentials");
-    } finally {
-      setIsLoading(false);
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
     }
-  };
+  }
 
   const handleGoogleLogin = () => {
-    loginWithGoogle(userType);
-  };
+    // Redirect to Google OAuth endpoint
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google?userType=${userType}`
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -68,11 +76,7 @@ export function LoginForm() {
         </div>
         <div className="space-y-2">
           <Label>User Type</Label>
-          <RadioGroup
-            value={userType}
-            onValueChange={setUserType}
-            className="flex space-x-4"
-          >
+          <RadioGroup value={userType} onValueChange={setUserType} className="flex space-x-4">
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="user" id="user" />
               <Label htmlFor="user">User</Label>
@@ -85,25 +89,18 @@ export function LoginForm() {
         </div>
       </div>
       <div className="space-y-4">
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Signing in..." : "Sign In"}
+        <Button type="submit" className="w-full" disabled={status === "loading"}>
+          {status === "loading" ? "Signing in..." : "Sign In"}
         </Button>
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-2 text-slate-500">
-              Or continue with
-            </span>
+            <span className="bg-white px-2 text-slate-500">Or continue with</span>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={handleGoogleLogin}
-        >
+        <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin}>
           <svg
             className="mr-2 h-4 w-4"
             xmlns="http://www.w3.org/2000/svg"
@@ -121,5 +118,5 @@ export function LoginForm() {
         </Button>
       </div>
     </form>
-  );
+  )
 }

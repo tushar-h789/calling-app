@@ -1,16 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useCall } from "@/hooks/use-call"
+import { useAppSelector } from "@/store/hooks"
 
 export function CallTimer() {
   const [seconds, setSeconds] = useState(0)
-  const { callState } = useCall()
+  const { status } = useAppSelector((state) => state.call)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
 
-    if (callState.status === "connected") {
+    if (status === "connected") {
       interval = setInterval(() => {
         setSeconds((prev) => prev + 1)
       }, 1000)
@@ -19,7 +19,7 @@ export function CallTimer() {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [callState.status])
+  }, [status])
 
   const formatTime = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600)

@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Phone, Video } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
-import { useSocket } from "@/hooks/use-socket"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { initiateCall } from "@/store/slices/callSlice"
 import type { Contact } from "@/types"
-import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar"
-import { Button } from "./ui/button"
 
 export function ContactsList() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { user, token } = useAuth()
-  const { socket } = useSocket()
+  const dispatch = useAppDispatch()
+  const { user, token } = useAppSelector((state) => state.auth)
+  const { socket } = useAppSelector((state) => state.socket)
   const router = useRouter()
 
   useEffect(() => {
@@ -69,15 +70,27 @@ export function ContactsList() {
     fetchContacts()
   }, [token, user])
 
-  const initiateCall = (contact: Contact, isVideo: boolean) => {
+  const handleInitiateCall = async (contact: Contact, isVideo: boolean) => {
     if (!socket) return
 
-    const callId = `${contact.appointmentId}-${Date.now()}`
+    try {
+      const resultAction = await dispatch(
+        initiateCall({
+          receiverId: contact.id,
+          appointmentId: contact.appointmentId,
+          isVideoCall: isVideo,
+        }),
+      ).unwrap()
 
-    // Navigate to call page
-    router.push(
-      `/call/${callId}?type=${isVideo ? "video" : "audio"}&receiver=${contact.id}&appointment=${contact.appointmentId}`,
-    )
+      // Navigate to call page
+      router.push(
+        `/call/${resultAction.callId}?type=${isVideo ? "video" : "audio"}&receiver=${contact.id}&appointment=${
+          contact.appointmentId
+        }`,
+      )
+    } catch (error) {
+      console.error("Failed to initiate call:", error)
+    }
   }
 
   if (isLoading) {
@@ -116,11 +129,11 @@ export function ContactsList() {
                   </div>
                 </div>
                 <div className="flex space-x-2">
-                  <Button size="sm" variant="outline" onClick={() => initiateCall(contact, false)}>
+                  <Button size="sm" variant="outline" onClick={() => handleInitiateCall(contact, false)}>
                     <Phone className="h-4 w-4 mr-1" />
                     Audio
                   </Button>
-                  <Button size="sm" onClick={() => initiateCall(contact, true)}>
+                  <Button size="sm" onClick={() => handleInitiateCall(contact, true)}>
                     <Video className="h-4 w-4 mr-1" />
                     Video
                   </Button>

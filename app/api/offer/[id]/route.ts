@@ -3,7 +3,7 @@ import { cookies } from "next/headers"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const callId = params.id
-  const token = cookies().get("token")?.value
+const token = localStorage.getItem("token")
 
   if (!token) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 })
