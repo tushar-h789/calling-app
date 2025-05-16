@@ -9,13 +9,15 @@ import { Phone, Video } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
 import { initiateCall } from "@/store/slices/callSlice"
 import type { Contact } from "@/types"
+import { toast } from "sonner"
 
 export function ContactsList() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [callingContact, setCallingContact] = useState<string | null>(null)
   const dispatch = useAppDispatch()
   const { user, token } = useAppSelector((state) => state.auth)
-  const { socket } = useAppSelector((state) => state.socket)
+  const { socket, isConnected } = useAppSelector((state) => state.socket) // Added isConnected
   const router = useRouter()
 
   useEffect(() => {
@@ -71,27 +73,56 @@ export function ContactsList() {
   }, [token, user])
 
   const handleInitiateCall = async (contact: Contact, isVideo: boolean) => {
-    if (!socket) return
+    if (!socket || !isConnected) {
+      toast.error("Socket not connected")
+      return
+    }
 
     try {
+      setCallingContact(contact.id)
+      
+      // First initiate the call
       const resultAction = await dispatch(
         initiateCall({
           receiverId: contact.id,
           appointmentId: contact.appointmentId,
           isVideoCall: isVideo,
-        }),
+        })
       ).unwrap()
+
+      // Emit call request to receiver
+      socket.emit("incoming-call", {
+        callId: resultAction.callId,
+        caller: socket.id,
+        callerName: user?.name,
+        receiver: contact.id,
+        appointmentId: contact.appointmentId,
+        isVideoCall: isVideo
+      })
 
       // Navigate to call page
       router.push(
-        `/call/${resultAction.callId}?type=${isVideo ? "video" : "audio"}&receiver=${contact.id}&appointment=${
-          contact.appointmentId
-        }`,
+        `/call/${resultAction.callId}?type=${isVideo ? "video" : "audio"}&receiver=${contact.id}&appointment=${contact.appointmentId}`
       )
+
+      // Set timeout for call not answered
+      setTimeout(() => {
+        if (callingContact === contact.id) {
+          toast.error("Call not answered")
+          setCallingContact(null)
+          socket.emit("call-timeout", {
+            callId: resultAction.callId,
+            receiver: contact.id
+          })
+        }
+      }, 30000) // 30 seconds timeout
+
     } catch (error) {
       console.error("Failed to initiate call:", error)
+      toast.error("Failed to initiate call")
+      setCallingContact(null)
     }
-  }
+}
 
   if (isLoading) {
     return (

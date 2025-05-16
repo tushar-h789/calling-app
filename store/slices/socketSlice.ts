@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit"
 import { io, type Socket } from "socket.io-client"
 import type { MissedCall } from "@/types"
+import { setCallerInfo, setCallId, setCallStatus, setIsVideoCall } from "./callSlice"
+import { AppDispatch } from ".."
 
 interface SocketState {
   socket: Socket | null
@@ -89,3 +91,24 @@ const socketSlice = createSlice({
 export const { setSocket, setSocketId, addMissedCall, clearMissedCall, disconnectSocket } = socketSlice.actions
 
 export default socketSlice.reducer
+
+
+export const setupSocketListeners = (socket: Socket, dispatch: AppDispatch) => {
+  // Handle incoming call
+  socket.on("incoming-call", (data: any) => {
+    console.log("Received incoming call:", data)
+
+    dispatch(setCallStatus("incoming"))
+    dispatch(setCallId(data.callId))
+    dispatch(setIsVideoCall(data.isVideoCall))
+    dispatch(
+      setCallerInfo({
+        callerName: data.callerName || "Unknown",
+        receiverId: data.caller,
+        appointmentId: data.appointmentId,
+      })
+    )
+
+    // Play ringtone will be handled by IncomingCallModal component
+  })
+}
